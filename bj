@@ -149,6 +149,8 @@ play.round () {
 	if ((total_dealer>21)); then
 		printf '%s\n' "${TXT_OKAY}Dealer bust!" \
 		"You win! ${TXT_RST}"
+		line.break
+		return
 	fi
 	printf '%s\n' "Your total is: $total_player" \
 	"Dealer total is: $total_dealer"
