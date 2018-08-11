@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+#
+#
+# SCRIPT: bj
+# AUTHOR: Jesse Butryn
+# DATE: 2018-08-12
+# REV: 1.0A
+#
+# PLATFORM: Not platform dependent
+#
+# PURPOSE: This script will play blackjack with you.
+#
+# REV LIST:
+# DATE: DATE_of_REVISION
+# BY: AUTHOR_of_MODIFICATION
+# MODIFICATION: Describe what was modified, new features, etc--
+#
+# set -n
+#
+# set -x
+#
+
+#
+# Variables
+#
+TXT_BLD=$(tput bold)
+TXT_YLW=$(tput setaf 3)
+TXT_RED=$(tput setaf 1)
+TXT_GRN=$(tput setaf 2)
+TXT_WARN="${TXT_BLD}${TXT_YLW}"
+TXT_ERR="${TXT_BLD}${TXT_RED}"
+TXT_OKAY="${TXT_BLD}${TXT_GRN}"
+TXT_RST=$(tput sgr0)
+COL_SIZE=${COLUMNS:-$(tput cols)}
+[[ $COL_SIZE -gt 120 ]] && COL_SIZE=120
+PS3="${TXT_OKAY}[BlackJack 2.0]${TXT_RST}: "
+BJ_CARDS=(
+	[0]='❷ Two (2)' 
+	[1]='❸ Three (3)' 
+	[2]='❹ Four (4)' 
+	[3]='❺ Five (5)' 
+	[4]='❻ Six (6)' 
+	[5]='❼ Seven (7)' 
+	[6]='❽ Eight (8)' 
+	[7]='❾ Nine (9)' 
+	[8]='❿ Ten (10)' 
+	[9]='♘ Jack (10)' 
+	[10]='♕ Queen (10)' 
+	[11]='♔ King (10)'
+	[12]='❖ Ace (1)' 
+	[13]='❖ Ace (11)'
+)
+#
+# Functions
+#
+line.break () {
+	printf '%*s\n' "$COL_SIZE" | tr ' ' -
+}
+rand.num () {
+	local mode=$1
+	local num=$((RANDOM%13))
+	if [[ $num -eq 12 && $mode == p ]]; then
+		num=$(if.ace)
+		printf '%i' "$num"
+	elif [[ $num -eq 12 && $mode == d ]]; then
+		printf '%i' '12'
+	else
+		printf '%i' "$num"
+	fi
+}
+if.ace () {
+	printf '%s\n' 'You have been dealt an Ace!' \
+	'Do you want it to be one or eleven?' >&2
+	select choice in One Eleven; do
+		case $choice in
+			One)		printf '%i' '12'; break;;
+			Eleven)	printf '%i' '13'; break;;
+		esac
+	done
+}
+deal.player () {
+	if ((${#CARDS_PLAYER[@]}==0)); then
+		CARDS_PLAYER=( "${BJ_CARDS[$(rand.num p)]}" "${BJ_CARDS[$(rand.num p)]}" )
+		printf '%s\n' "${TXT_OKAY}You have been dealt:${TXT_RST}" \
+		"${TXT_BLD}${CARDS_PLAYER[0]}${TXT_RST}" \
+		"${TXT_BLD}${CARDS_PLAYER[1]}${TXT_RST}"
+	else
+		CARDS_PLAYER+=( "${BJ_CARDS[$(rand.num p)]}" )
+		printf '%s\n' "${TXT_OKAY}You have been dealt:${TXT_RST}" \
+		"${TXT_BLD}${CARDS_PLAYER[-1]}${TXT_RST}"
+	fi
+}
+deal.dealer () {
+	if ((${#CARDS_DEALER[@]}==0)); then
+		CARDS_DEALER=( "${BJ_CARDS[$(rand.num d)]}" "${BJ_CARDS[$(rand.num d)]}" )
+		printf '%s\n' "${TXT_WARN}Dealer has been dealt:${TXT_RST}" \
+		"Face down card" \
+		"${TXT_BLD}${CARDS_DEALER[1]}${TXT_RST}"
+	else
+		CARDS_DEALER+=( "${BJ_CARDS[$(rand.num d)]}" )
+		printf '%s\n' "${TXT_WARN}Dealer has been dealt:${TXT_RST}" \
+		"${TXT_BLD}${CARDS_DEALER[-1]}${TXT_RST}"
+	fi
+}
+total.cards () {
+	local cards=( "$@" )
+	local t
+	local v
+	for c in "${cards[@]}"; do
+		v=$(awk 'sub(/\(/, "", $3) sub(/\)/, "", $3){print $3}' <<<"$c")
+		t=$((t+v))
+	done
+	echo "$t"
+}
+play.round () {
+	CARDS_PLAYER=()
+	CARDS_DEALER=()
+	deal.player
+	line.break
+	deal.dealer
+	line.break
+	local total_player=$(total.cards "${CARDS_PLAYER[@]}")
+	local total_dealer=$(total.cards "${CARDS_DEALER[@]}")
+	while ((total_player<21)); do
+		printf '%s\n' "You currently have: $total_player"
+		line.break
+		select answer in Hit Stay; do
+			case $answer in
+				Hit)	deal.player; break;;
+				Stay)	break 2;;
+			esac
+		done
+		total_player=$(total.cards "${CARDS_PLAYER[@]}")
+		line.break
+	done
+	if ((total_player>21)); then
+		printf '%s\n' "${TXT_ERR}You bust! ${TXT_RST}" \
+		"${TXT_WARN}Dealer wins.${TXT_RST}"
+		line.break
+		return
+	fi
+	while ((total_dealer<17)); do
+		line.break
+		printf '%s\n' "Dealer hits."
+		deal.dealer
+		total_dealer=$(total.cards "${CARDS_DEALER[@]}")
+	done
+	line.break
+	if ((total_dealer>21)); then
+		printf '%s\n' "${TXT_OKAY}Dealer bust!" \
+		"You win! ${TXT_RST}"
+	fi
+	printf '%s\n' "Your total is: $total_player" \
+	"Dealer total is: $total_dealer"
+	if ((total_dealer>=total_player)); then
+		printf '%s\n' "${TXT_WARN}Dealer wins.${TXT_RST}"
+	else
+		printf '%s\n' "${TXT_OKAY}You win! ${TXT_RST}"
+	fi
+}
+#
+# Play
+#
+BJ_PLAY=yes
+while [[ $BJ_PLAY == yes ]]; do
+	clear
+	line.break
+	printf '%s\n' "${TXT_OKAY}Have fun! ${TXT_RST}"
+	play.round
+	line.break
+	printf '%s\n' "${TXT_BLD}Would you like to play again?${TXT_RST}"
+	select answer in Yes No; do
+		case $answer in
+			Yes) BJ_PLAY=yes; break;;
+			No) BJ_PLAY=no; break;;
+		esac
+	done
+done
+
